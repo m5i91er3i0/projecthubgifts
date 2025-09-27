@@ -68,8 +68,8 @@ document.addEventListener("DOMContentLoaded", () => {
       .channel(`chat-${currentUserId}`)
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "messages" }, (payload) => {
         if (payload.new.user_id === currentUserId) {
-          renderMessage(payload.new); // Append new message immediately
-          fetchMessages(); // Refresh full history to ensure consistency
+          renderMessage(payload.new);
+          fetchMessages(); // Ensure full history sync
         }
       })
       .subscribe((status) => {
@@ -77,8 +77,8 @@ document.addEventListener("DOMContentLoaded", () => {
         if (status === "SUBSCRIBED") {
           fetchMessages();
         } else if (status === "CLOSED" || status === "ERROR") {
-          console.warn("Subscription closed or errored, starting polling fallback...");
-          pollingInterval = setInterval(fetchMessages, 5000); // Fallback polling every 5 seconds
+          console.warn("Subscription closed or errored, starting polling...");
+          pollingInterval = setInterval(fetchMessages, 2000); // Poll every 2 seconds
         }
       });
 
