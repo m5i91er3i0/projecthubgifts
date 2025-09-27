@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Admin Portal</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header>Admin Portal</header>
+
+  <div class="container" id="loginContainer">
+    <form id="loginForm">
+      <input id="adminUsername" placeholder="Username">
+      <input id="adminPassword" type="password" placeholder="Password">
+      <button type="submit">Login</button>
+    </form>
+    <p id="loginError" style="display:none; color:red;">Invalid login</p>
+  </div>
+
+  <div class="container" id="dashboard" style="display:none;">
+    <h2>Latest Requests</h2>
+    <table id="requestsTable">
+      <thead><tr><th>User</th><th>Gamepass</th><th>Chat</th></tr></thead>
+      <tbody></tbody>
+    </table>
+
+    <h2>Chat</h2>
+    <div id="chatBox" class="chat-box"></div>
+    <input id="adminMsg" placeholder="Type a message">
+    <button id="sendBtn">Send</button>
+  </div>
+
+  <script type="module" src="admin.js"></script>
+</body>
+</html>
