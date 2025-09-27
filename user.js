@@ -40,7 +40,7 @@ function loadMessages() {
 
   supabase
     .channel("chat")
-    .on("postgres_changes", { event: "*", schema: "public", table: "messages" }, (payload) => {
+    .on("postgres_changes", { event: "INSERT", schema: "public", table: "messages" }, (payload) => {
       if (payload.new.user_id === currentUserId) renderMessage(payload.new);
     })
     .subscribe();
