@@ -15,6 +15,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   let currentUserId = null;
   let chatChannel = null;
+  let pollingInterval = null;
 
   submitBtn.addEventListener("click", async () => {
     const username = usernameInput.value;
@@ -59,16 +60,26 @@ document.addEventListener("DOMContentLoaded", () => {
     if (chatChannel) {
       supabase.removeChannel(chatChannel);
     }
+    if (pollingInterval) {
+      clearInterval(pollingInterval);
+    }
 
     chatChannel = supabase
       .channel(`chat-${currentUserId}`)
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "messages" }, (payload) => {
         if (payload.new.user_id === currentUserId) {
-          renderMessage(payload.new);
+          renderMessage(payload.new); // Append new message immediately
+          fetchMessages(); // Refresh full history to ensure consistency
         }
       })
       .subscribe((status) => {
         console.log(`Subscription status for user ${currentUserId}: ${status}`);
+        if (status === "SUBSCRIBED") {
+          fetchMessages();
+        } else if (status === "CLOSED" || status === "ERROR") {
+          console.warn("Subscription closed or errored, starting polling fallback...");
+          pollingInterval = setInterval(fetchMessages, 5000); // Fallback polling every 5 seconds
+        }
       });
 
     fetchMessages();
@@ -91,9 +102,12 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   function renderMessage(msg) {
-    const div = document.createElement("div");
-    div.textContent = `${msg.sender}: ${msg.text}`;
-    chatBox.appendChild(div);
-    chatBox.scrollTop = chatBox.scrollHeight;
+    const existingMessages = Array.from(chatBox.children).map((div) => div.textContent);
+    if (!existingMessages.includes(`${msg.sender}: ${msg.text}`)) {
+      const div = document.createElement("div");
+      div.textContent = `${msg.sender}: ${msg.text}`;
+      chatBox.appendChild(div);
+      chatBox.scrollTop = chatBox.scrollHeight;
+    }
   }
 });
