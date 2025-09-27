@@ -67,9 +67,13 @@ document.addEventListener("DOMContentLoaded", () => {
     chatChannel = supabase
       .channel(`chat-${currentUserId}`)
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "messages" }, (payload) => {
+        console.log("Received postgres_changes event:", payload);
         if (payload.new.user_id === currentUserId) {
+          console.log("Rendering new message:", payload.new);
           renderMessage(payload.new);
-          fetchMessages(); // Ensure full history sync
+          fetchMessages(); // Sync full history
+        } else {
+          console.log("Message filtered out, user_id mismatch:", payload.new.user_id, currentUserId);
         }
       })
       .subscribe((status) => {
@@ -78,7 +82,7 @@ document.addEventListener("DOMContentLoaded", () => {
           fetchMessages();
         } else if (status === "CLOSED" || status === "ERROR") {
           console.warn("Subscription closed or errored, starting polling...");
-          pollingInterval = setInterval(fetchMessages, 2000); // Poll every 2 seconds
+          pollingInterval = setInterval(fetchMessages, 1000); // Poll every 1 second
         }
       });
 
@@ -97,6 +101,7 @@ document.addEventListener("DOMContentLoaded", () => {
       return;
     }
 
+    console.log("Fetched messages:", data);
     chatBox.innerHTML = "";
     data.forEach(renderMessage);
   }
@@ -104,6 +109,7 @@ document.addEventListener("DOMContentLoaded", () => {
   function renderMessage(msg) {
     const existingMessages = Array.from(chatBox.children).map((div) => div.textContent);
     if (!existingMessages.includes(`${msg.sender}: ${msg.text}`)) {
+      console.log("Appending message to UI:", msg);
       const div = document.createElement("div");
       div.textContent = `${msg.sender}: ${msg.text}`;
       chatBox.appendChild(div);
