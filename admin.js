@@ -19,6 +19,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   let selectedUser = null;
   let adminChatChannel = null;
+  let pollingInterval = null;
 
   loginForm.addEventListener("submit", (e) => {
     e.preventDefault();
@@ -56,16 +57,26 @@ document.addEventListener("DOMContentLoaded", () => {
     if (adminChatChannel) {
       supabase.removeChannel(adminChatChannel);
     }
+    if (pollingInterval) {
+      clearInterval(pollingInterval);
+    }
 
     adminChatChannel = supabase
       .channel(`admin-chat-${userId}`)
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "messages" }, (payload) => {
         if (payload.new.user_id === selectedUser) {
-          renderMessage(payload.new);
+          renderMessage(payload.new); // Append new message immediately
+          fetchMessages(userId); // Refresh full history to ensure consistency
         }
       })
       .subscribe((status) => {
         console.log(`Subscription status for admin chat ${userId}: ${status}`);
+        if (status === "SUBSCRIBED") {
+          fetchMessages(userId);
+        } else if (status === "CLOSED" || status === "ERROR") {
+          console.warn("Subscription closed or errored, starting polling fallback...");
+          pollingInterval = setInterval(() => fetchMessages(userId), 5000); // Fallback polling every 5 seconds
+        }
       });
 
     fetchMessages(userId);
@@ -105,9 +116,12 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   function renderMessage(msg) {
-    const div = document.createElement("div");
-    div.textContent = `${msg.sender}: ${msg.text}`;
-    chatBox.appendChild(div);
-    chatBox.scrollTop = chatBox.scrollHeight;
+    const existingMessages = Array.from(chatBox.children).map((div) => div.textContent);
+    if (!existingMessages.includes(`${msg.sender}: ${msg.text}`)) {
+      const div = document.createElement("div");
+      div.textContent = `${msg.sender}: ${msg.text}`;
+      chatBox.appendChild(div);
+      chatBox.scrollTop = chatBox.scrollHeight;
+    }
   }
 });
