@@ -12,15 +12,10 @@ document.addEventListener("DOMContentLoaded", () => {
   const adminMsg = document.getElementById("adminMsg");
   const sendBtn = document.getElementById("sendBtn");
 
-  if (!loginForm || !loginError || !dashboard || !requestsTable || !chatBox || !adminMsg || !sendBtn) {
-    console.error("One or more DOM elements not found");
-    return;
-  }
-
   let selectedUser = null;
   let adminChatChannel = null;
-  let pollingInterval = null;
 
+  // Admin login
   loginForm.addEventListener("submit", (e) => {
     e.preventDefault();
     const user = document.getElementById("adminUsername").value;
@@ -35,12 +30,15 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   });
 
+  // Load all requests
   async function loadRequests() {
-    let { data, error } = await supabase.from("users").select("*");
+    const { data, error } = await supabase.from("users").select("*");
+
     if (error) {
-      console.error("Error fetching users:", error.message, error.details);
+      console.error("Error loading requests:", error.message);
       return;
     }
+
     requestsTable.innerHTML = "";
     data.forEach((req) => {
       const tr = document.createElement("tr");
@@ -50,61 +48,52 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
 
+  // Open chat with a user
   function openChat(userId) {
     selectedUser = userId;
     chatBox.innerHTML = "";
 
-    if (adminChatChannel) {
-      supabase.removeChannel(adminChatChannel);
-    }
-    if (pollingInterval) {
-      clearInterval(pollingInterval);
-    }
+    if (adminChatChannel) supabase.removeChannel(adminChatChannel);
 
     adminChatChannel = supabase
       .channel(`admin-chat-${userId}`)
-      .on("postgres_changes", { event: "INSERT", schema: "public", table: "messages" }, (payload) => {
-        console.log("Received postgres_changes event:", payload);
-        if (payload.new.user_id === selectedUser) {
-          console.log("Rendering new message:", payload.new);
+      .on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "messages",
+          filter: `user_id=eq.${userId}`,
+        },
+        (payload) => {
           renderMessage(payload.new);
-          fetchMessages(userId); // Sync full history
-        } else {
-          console.log("Message filtered out, user_id mismatch:", payload.new.user_id, selectedUser);
         }
-      })
-      .subscribe((status) => {
-        console.log(`Subscription status for admin chat ${userId}: ${status}`);
-        if (status === "SUBSCRIBED") {
-          fetchMessages(userId);
-        } else if (status === "CLOSED" || status === "ERROR") {
-          console.warn("Subscription closed or errored, starting polling...");
-          pollingInterval = setInterval(() => fetchMessages(userId), 1000); // Poll every 1 second
-        }
-      });
+      )
+      .subscribe();
 
     fetchMessages(userId);
   }
 
+  // Send admin message
   sendBtn.addEventListener("click", async () => {
     if (!selectedUser) return;
     const text = adminMsg.value;
     if (!text) return;
 
-    let { error } = await supabase.from("messages").insert([
+    const { error } = await supabase.from("messages").insert([
       { user_id: selectedUser, sender: "admin", text },
     ]);
+
     if (error) {
       console.error("Error sending message:", error.message);
-      return;
     }
 
     adminMsg.value = "";
-    fetchMessages(selectedUser);
   });
 
+  // Load past messages
   async function fetchMessages(userId) {
-    let { data, error } = await supabase
+    const { data, error } = await supabase
       .from("messages")
       .select("*")
       .eq("user_id", userId)
@@ -115,19 +104,14 @@ document.addEventListener("DOMContentLoaded", () => {
       return;
     }
 
-    console.log("Fetched messages:", data);
     chatBox.innerHTML = "";
     data.forEach(renderMessage);
   }
 
   function renderMessage(msg) {
-    const existingMessages = Array.from(chatBox.children).map((div) => div.textContent);
-    if (!existingMessages.includes(`${msg.sender}: ${msg.text}`)) {
-      console.log("Appending message to UI:", msg);
-      const div = document.createElement("div");
-      div.textContent = `${msg.sender}: ${msg.text}`;
-      chatBox.appendChild(div);
-      chatBox.scrollTop = chatBox.scrollHeight;
-    }
+    const div = document.createElement("div");
+    div.textContent = `${msg.sender}: ${msg.text}`;
+    chatBox.appendChild(div);
+    chatBox.scrollTop = chatBox.scrollHeight;
   }
 });
